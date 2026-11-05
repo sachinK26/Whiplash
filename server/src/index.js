@@ -1,11 +1,19 @@
+const path = require('path');
+const dotenv = require('dotenv');
+
+// ─── Load Environment Variables ──────────────────────────────────────────────
+// Check project root (.env) first, then current working directory
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const dotenv = require('dotenv');
-const { connectDB } = require('./config/db');
+const mongoose = require('mongoose');
 
-dotenv.config({ path: '../../.env' });
+const { connectDB } = require('./config/db');
+const { refreshClientCredentials } = require('./config/spotify');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,7 +21,10 @@ const PORT = process.env.PORT || 5000;
 // Connect to MongoDB
 connectDB();
 
-// ─── Middleware ────────────────────────────────────────────────────────────────
+// Initialize Spotify server-to-server credentials in the background
+refreshClientCredentials();
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cors({
@@ -23,29 +34,63 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth',    require('./routes/auth.routes'));
-app.use('/api/users',   require('./routes/user.routes'));
+// ─── API Routes ───────────────────────────────────────────────────────────────
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/reviews', require('./routes/review.routes'));
-app.use('/api/music',   require('./routes/music.routes'));
-app.use('/api/lists',   require('./routes/list.routes'));
+app.use('/api/music', require('./routes/music.routes'));
+app.use('/api/lists', require('./routes/list.routes'));
 
-// Health check
+// ─── Welcome / Root Route ─────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Whiplash API',
+    description: 'Letterboxd for music — backend API server 🎵',
+    version: '1.0.0',
+    status: 'online',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      music: '/api/music',
+      reviews: '/api/reviews',
+      lists: '/api/lists',
+      users: '/api/users',
+    },
+  });
+});
+
+// ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Whiplash API is running 🎵' });
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({
+    status: 'OK',
+    message: 'Whiplash API is running 🎵',
+    database: dbStatus,
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// ─── 404 handler ──────────────────────────────────────────────────────────────
+// ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({
+    success: false,
+    message: `Cannot ${req.method} ${req.originalUrl} - Route not found`,
+  });
 });
 
-// ─── Global error handler ─────────────────────────────────────────────────────
+// ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
+  console.error('Unhandled Server Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Whiplash server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Whiplash server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
