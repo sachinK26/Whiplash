@@ -1,4 +1,4 @@
-# 🎵 Whiplash
+Whiplash
 
 > **Letterboxd, but for music.** Rate, review, and discover songs and albums with your friends.
 
