@@ -16,7 +16,7 @@ const { connectDB } = require('./config/db');
 const { refreshClientCredentials } = require('./config/spotify');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Connect to MongoDB
 connectDB();
@@ -36,14 +36,16 @@ app.use(express.urlencoded({ extended: true }));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/users', require('./routes/user.routes'));
+app.use('/api/spotify', require('./routes/spotify.routes'));
+app.use('/api/music', require('./routes/spotify.routes'));
 app.use('/api/reviews', require('./routes/review.routes'));
-app.use('/api/music', require('./routes/music.routes'));
+app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/lists', require('./routes/list.routes'));
 
 // ─── Welcome / Root Route ─────────────────────────────────────────────────────
-app.get('/', (req, res) => {
+app.get(['/', '/api'], (req, res) => {
   res.json({
+    success: true,
     name: 'Whiplash API',
     description: 'Letterboxd for music — backend API server 🎵',
     version: '1.0.0',
@@ -51,6 +53,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
+      spotify: '/api/spotify',
       music: '/api/music',
       reviews: '/api/reviews',
       lists: '/api/lists',
